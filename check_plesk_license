@@ -1,0 +1,100 @@
+#!/usr/bin/env php
+<?php
+define('NAGIOS_RETURN_OK',       0);
+define('NAGIOS_RETURN_WARNING',  1);
+define('NAGIOS_RETURN_CRITICAL', 2);
+define('NAGIOS_RETURN_UNKNOWN',  3);
+function usage() {
+    $msg = <<<USG
+
+check_plesk_license - Nagios plugin to check for expired Plesk licenses
+
+Usage:
+    check_plesk_license <daysToExpire> [<server> [<password>]]
+
+Parameters:
+
+    <daysToExpire>
+        the acceptable amount of days before license expiration
+
+    <server> (optional)
+        server hostname. if not specified, defaults to localhost.
+
+    <password> (optional)
+        server admin password
+        if not specified, the password will be retrieved from /etc/psa/.psa.shadow
+
+USG;
+    echo $msg;
+    exit;
+}
+function get_plesk_password() {
+    if (strtolower(substr(PHP_OS, 0, 3)) == 'win') {
+        $objCom = new COM("WScript.Shell");
+        $ret    = $objCom->Exec('"%plesk_bin%\plesksrvclient.exe" -get -nogui | more')->StdOut->ReadAll;
+        return trim(str_replace('Plesk Admin Password:', '', $ret));
+    } else {
+        return trim(file_get_contents('/etc/psa/.psa.shadow'));
+    }
+}
+if ($argc < 2 || in_array($argv[1], array('-h', '--help'))) {
+    usage();
+}
+// parameters
+$acceptableDaysToExpire = (int) $argv[1];
+$server                 = isset($argv[2]) ? $argv[2] : 'localhost';
+$pass                   = isset($argv[3]) ? $argv[3] : get_plesk_password();
+$apiProtocolVersion     = '1.4.0.0';
+$curlpath 		= '/usr/bin/curl';
+$url = 'https://'.$server.':8443/enterprise/control/agent.php';
+$curl_request = 'HTTP_AUTH_LOGIN: admin';
+$curl_request1 = 'HTTP_AUTH_PASSWD: '.$pass;
+$curl_request2 = 'Content-type: text/xml';
+$curl_post = '<packet version="'.$apiProtocolVersion.'"><server><get><key/></get></server></packet>';
+if (!extension_loaded('curl')) {
+	$command = "$curlpath -s -4 -k -H '$curl_request' -H '$curl_request1' -H '$curl_request2' -d '$curl_post' $url";
+	$result = shell_exec($command);
+	if(empty($tmp_response)){
+		fwrite(STDERR, "UNKNOWN: Could not connect to server or get licence file\n");
+		exit(NAGIOS_RETURN_UNKNOWN);
+	}
+}else{
+	$curl = curl_init();
+	curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+	curl_setopt($curl, CURLOPT_POST, true);
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($curl, CURLOPT_URL, $url);
+	curl_setopt($curl, CURLOPT_HTTPHEADER, array($curl_request,$curl_request1,$curl_request2));
+	curl_setopt($curl, CURLOPT_POSTFIELDS, $curl_post);
+	$result = curl_exec($curl);
+	if (curl_errno($curl)) {
+		$errorMsg  = curl_error($curl);
+    		$errorCode = curl_errno($curl);
+		fwrite(STDERR, 'UNKNOWN: Error ' . $errorCode . '. ' . $errorMsg . ".\n");
+		exit(NAGIOS_RETURN_UNKNOWN);
+	}	
+}
+$sxe = new SimpleXMLElement($result);
+$node = $sxe->xpath('//lim_date');
+if (empty($node)) {
+	fwrite(STDERR, "UNKNOWN: Could not retrieve license info from server response\n");
+	exit(NAGIOS_RETURN_UNKNOWN);
+}
+$expirationDate = (string) $node[0];
+$future = strtotime($expirationDate);
+$now    = strtotime("now");
+$diff   = $future - $now;
+$daysToExpire = floor($diff/86400);
+if ($daysToExpire < 0) {
+	fwrite(STDERR, "CRITICAL: License already expired " . abs($daysToExpire) . " days ago.\n");
+	die(NAGIOS_RETURN_CRITICAL);
+} else if ($daysToExpire <= $acceptableDaysToExpire) {
+	fwrite(STDERR, "WARNING: License will expire in: " . $daysToExpire . " days.\n");
+	die(NAGIOS_RETURN_WARNING);
+} else {
+	fwrite(STDOUT, "OK: License will expire in: " . $daysToExpire . " days.\n");
+	die(NAGIOS_RETURN_OK);
+}
+fwrite(STDOUT, $daysToExpire . "\n");
+?>
