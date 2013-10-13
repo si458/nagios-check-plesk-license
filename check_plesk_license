@@ -54,7 +54,7 @@ $curl_post = '<packet version="'.$apiProtocolVersion.'"><server><get><key/></get
 if (!extension_loaded('curl')) {
 	$command = "$curlpath -s -4 -k -H '$curl_request' -H '$curl_request1' -H '$curl_request2' -d '$curl_post' $url";
 	$result = shell_exec($command);
-	if(empty($tmp_response)){
+	if(empty($result)){
 		fwrite(STDERR, "UNKNOWN: Could not connect to server or get licence file\n");
 		exit(NAGIOS_RETURN_UNKNOWN);
 	}
@@ -70,7 +70,7 @@ if (!extension_loaded('curl')) {
 	$result = curl_exec($curl);
 	if (curl_errno($curl)) {
 		$errorMsg  = curl_error($curl);
-    		$errorCode = curl_errno($curl);
+    	$errorCode = curl_errno($curl);
 		fwrite(STDERR, 'UNKNOWN: Error ' . $errorCode . '. ' . $errorMsg . ".\n");
 		exit(NAGIOS_RETURN_UNKNOWN);
 	}	
