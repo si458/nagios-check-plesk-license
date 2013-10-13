@@ -1,5 +1,5 @@
-nagios-check-plesk-license
+nagios-check-scripts
 ==========================
-This is a simple PHP check file that uses curl to retrieve your plesk licence from your server
+The files included in this repo can be used with nagios or GWOS to do certain checks
 
-This script can be used with nagios and GWOS 
+**check_plesk_license ** - this is a simple PHP file that uses php-curl or curl(commandline) to check your plesk license 
