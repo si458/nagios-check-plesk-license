@@ -1,0 +1,53 @@
+#!/usr/bin/env php
+<?php
+define('NAGIOS_RETURN_OK',       0);
+define('NAGIOS_RETURN_WARNING',  1);
+define('NAGIOS_RETURN_CRITICAL', 2);
+define('NAGIOS_RETURN_UNKNOWN',  3);
+function usage() {
+    $msg = <<<USG
+
+check_https_port - Nagios plugin to check alternative https ports
+
+Usage:
+    check_https_ports <server> <port>
+
+Parameters:
+
+    <server>
+        server hostname
+
+    <port> (optional) default port : 443
+        server port
+        
+USG;
+    echo $msg;
+    exit;
+}
+if ($argc < 2 || in_array($argv[1], array('-h', '--help'))) {
+    usage();
+}
+// parameters
+$server	 	= $argv[1];
+$port		= isset($argv[2]) ? $argv[2] : '443';
+$url = 'https://'.$server.':'.$port;
+$curlpath 		= '/usr/bin/curl';
+$command = $curlpath.' -s -4 -k '.$url;
+if (!extension_loaded('curl')) {
+	$result = shell_exec($command);
+}else{
+	$curl = curl_init();
+    curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($curl, CURLOPT_URL, $url);
+    $result = curl_exec($curl);
+}	
+if(empty($result)){
+	fwrite(STDERR, "CRITICAL: Server isnt responding with data.\n");
+	die(NAGIOS_RETURN_CRITICAL);	
+}else{
+	fwrite(STDERR, "OK: Server is responding with data.\n");
+	die(NAGIOS_RETURN_OK);	
+}
+?>
