@@ -37,7 +37,7 @@ if(empty($result)){
 	fwrite(STDERR, "CRITICAL: Server isnt responding with data.\n");
 	die(NAGIOS_RETURN_CRITICAL);	
 }else{
-	fwrite(STDERR, "OK: Server is responding with data.\n");
+	fwrite(STDOUT, "OK: Server is responding with data.\n");
 	die(NAGIOS_RETURN_OK);	
 }
 ?>
